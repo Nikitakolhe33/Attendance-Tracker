@@ -7,43 +7,65 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
   <style>
-    @keyframes fadeInBounce {
-      0% { opacity: 0; transform: translateY(-20px) scale(0.95); }
-      50% { transform: translateY(10px) scale(1.02); }
-      100% { opacity: 1; transform: translateY(0) scale(1); }
+    :root {
+      --main-bg: linear-gradient(135deg, #230fd3, #764ba2);
     }
 
     body {
+      margin: 0;
+      padding: 0;
       font-family: 'Segoe UI', sans-serif;
       background: #f7f9fc;
       color: #333;
-      padding: 20px;
       transition: background 0.3s, color 0.3s;
+      animation: fadeInBody 1.2s ease;
     }
+
     body.dark {
       background: #1e1e2f;
       color: #f0f0f0;
     }
+
+    @keyframes fadeInBody {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideZoom {
+      0% { opacity: 0; transform: scale(0.96) translateY(20px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .container {
+      max-width: 960px;
+      margin: auto;
+      padding: 20px;
+    }
+
     h1 {
       text-align: center;
       font-size: 2.5rem;
       font-weight: 700;
-      color: #6a11cb;
+      color: #0715db;
       letter-spacing: 1px;
-      animation: fadeInBounce 1.2s ease-out;
-      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+      margin-top: 40px;
+      animation: slideZoom 1s ease-out;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.1);
     }
-    form, .employee-section, .controls {
+
+    form, .controls, #employeeTables {
       background: white;
       padding: 20px;
-      border-radius: 10px;
-      max-width: 800px;
-      margin: 20px auto;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      border-radius: 12px;
+      margin: 20px 0;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+      animation: slideZoom 1s ease-in-out;
     }
-    body.dark form, body.dark .employee-section, body.dark .controls {
+
+    body.dark form, body.dark .controls, body.dark #employeeTables {
       background: #2d2d40;
     }
+
     input, button, select {
       padding: 10px;
       margin: 10px 0;
@@ -53,37 +75,43 @@
       border: 1px solid #ccc;
       box-sizing: border-box;
     }
+
     button {
-      background: linear-gradient(to right, #667eea, #764ba2);
+      background: var(--main-bg);
       color: white;
       border: none;
       cursor: pointer;
-      transition: transform 0.2s;
+      transition: transform 0.2s ease;
     }
+
     button:hover {
-      transform: scale(1.03);
+      transform: scale(1.04);
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
     }
+
     th, td {
       padding: 12px;
       border: 1px solid #ddd;
       text-align: center;
     }
-    th { background-color: #f0f0f0; }
+
+    th {
+      background-color: #f0f0f0;
+    }
+
     body.dark th, body.dark td {
       background-color: #333;
       color: #f0f0f0;
     }
+
     tr.holiday-row {
       background-color: #fff7c2;
     }
-    input.time-edit { width: 90%; font-size: 14px; }
-    .counts { font-weight: bold; margin-top: 10px; }
-    .label { font-weight: bold; }
 
     .dark-mode-toggle {
       position: fixed;
@@ -93,7 +121,7 @@
       height: 50px;
       border-radius: 50%;
       background-color: #333;
-      color: white;
+      color: rgb(94, 91, 91);
       border: none;
       cursor: pointer;
       font-size: 18px;
@@ -104,48 +132,62 @@
       transition: background-color 0.3s, transform 0.2s;
       z-index: 999;
     }
+
     body.dark .dark-mode-toggle {
       background-color: #f0f0f0;
       color: #1e1e2f;
     }
+
     .dark-mode-toggle:hover {
-      transform: scale(1.1);
+      transform: scale(1.15);
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 2rem;
+      }
+
+      .container {
+        padding: 10px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Employee Attendance Sheet</h1>
+  <div class="container">
+    <h1>Attendance Sheet</h1>
 
-  <button class="dark-mode-toggle" onclick="toggleDarkMode()">
-    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-circle-half" viewBox="0 0 16 16">
-      <path d="M8 15A7 7 0 1 0 8 1zm0 1A8 8 0 1 1 8 0a8 8 0 0 1 0 16"/>
-    </svg>
-  </button>
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-circle-half" viewBox="0 0 16 16">
+        <path d="M8 15A7 7 0 1 0 8 1zm0 1A8 8 0 1 1 8 0a8 8 0 0 1 0 16"/>
+      </svg>
+    </button>
 
-  <form id="attendanceForm">
-    <input type="text" id="company" placeholder="Company Name" required />
-    <input type="text" id="name" placeholder="Employee Name" required />
-    <label><strong>Select Month:</strong></label>
-    <select id="monthSelect"></select>
-    <label><strong>Select Year:</strong></label>
-    <select id="yearSelect"></select>
-    <label><strong>Select Date:</strong></label>
-    <input type="date" id="date" placeholder="Date"/>
-    <label><strong>In Times:</strong></label>
-    <input type="time" id="inTime" placeholder="In Time" required />
-    <label><strong>Out Times:</strong></label>
-    <input type="time" id="outTime" placeholder="Out Time" required />
-    <button type="submit">Add / Update</button>
-  </form>
+    <form id="attendanceForm">
+      <input type="text" id="company" placeholder="Company Name" required />
+      <input type="text" id="name" placeholder="Employee Name" required />
+      <label><strong>Select Month:</strong></label>
+      <select id="monthSelect"></select>
+      <label><strong>Select Year:</strong></label>
+      <select id="yearSelect"></select>
+      <label><strong>Select Date:</strong></label>
+      <input type="date" id="date" />
+      <label><strong>In Times:</strong></label>
+      <input type="time" id="inTime" required />
+      <label><strong>Out Times:</strong></label>
+      <input type="time" id="outTime" required />
+      <button type="submit">Add / Update</button>
+    </form>
 
-  <div class="controls">
-    <input type="text" id="search" placeholder="🔍 Search Employee Name" />
-    <button onclick="downloadExcel()">⬇️ Excel</button>
-    <button onclick="downloadPDF()">🧾 PDF</button>
-    <button onclick="clearData()"> Clear All</button>
+    <div class="controls">
+      <input type="text" id="search" placeholder="🔍 Search Employee Name" />
+      <button onclick="downloadExcel()">⬇️ Excel</button>
+      <button onclick="downloadPDF()">🧾 PDF</button>
+      <button onclick="clearData()"> Clear All</button>
+    </div>
+
+    <div id="employeeTables"></div>
   </div>
-
-  <div id="employeeTables"></div>
 
   <script>
     const form = document.getElementById('attendanceForm');
