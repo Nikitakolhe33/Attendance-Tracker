@@ -63,6 +63,29 @@
     }
     input.time-edit { width: 90%; font-size: 14px; }
     .counts { font-weight: bold; margin-top: 10px; }
+    .label {
+      font-weight: bold;
+    }
+    @keyframes fadeInZoom {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+h1 {
+  text-align: center;
+  animation: fadeInZoom 1s ease-out;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #9400D3;
+  letter-spacing: 1px;
+}
+
   </style>
 </head>
 <body>
@@ -71,13 +94,16 @@
   <form id="attendanceForm">
     <input type="text" id="company" placeholder="Company Name" required />
     <input type="text" id="name" placeholder="Employee Name" required />
-    <label>Select Month:</label>
+    <label><strong>Select Month:</strong></label>
     <select id="monthSelect"></select>
-    <label>Select Year:</label>
+    <label><strong>Select Year:</strong></label>
     <select id="yearSelect"></select>
-    <input type="date" id="date" />
-    <input type="time" id="inTime" />
-    <input type="time" id="outTime" />
+    <label><strong>Select Date:</strong></label>
+    <input type="date" id="date"  placeholder="Date"/>
+    <label><strong>In Times:</strong></label>
+    <input type="time" id="inTime" placeholder="In Time" required />
+    <label><strong>Out Times:</strong></label>
+    <input type="time" id="outTime" placeholder="Out Time" required />
     <button type="submit">Add / Update</button>
   </form>
 
@@ -85,8 +111,8 @@
     <input type="text" id="search" placeholder="🔍 Search Employee Name" />
     <button onclick="downloadExcel()">⬇️ Excel</button>
     <button onclick="downloadPDF()">🧾 PDF</button>
-    <button onclick="clearData()">♻️ Clear All</button>
-    <button onclick="toggleDark()">🌓 Toggle Dark Mode</button>
+    <button onclick="clearData()"> Clear All</button>
+    <button onclick="toggleDark()"> Dark Mode</button>
   </div>
 
   <div id="employeeTables"></div>
@@ -110,17 +136,29 @@
       loadFromStorage();
     };
 
-    for (let m = 0; m < 12; m++) {
-      const opt = new Option(new Date(0, m).toLocaleString('default', { month: 'long' }), m);
-      if (m === new Date().getMonth()) opt.selected = true;
-      monthSelect.add(opt);
-    }
+    // First, add placeholder at top of month dropdown
+monthSelect.add(new Option("--Select Month--", "", true, true));
 
-    for (let y = 2020; y <= 2030; y++) {
-      const opt = new Option(y, y);
-      if (y === new Date().getFullYear()) opt.selected = true;
-      yearSelect.add(opt);
-    }
+for (let m = 0; m < 12; m++) {
+  const opt = new Option(
+    new Date(0, m).toLocaleString('default', { month: 'long' }),
+    m
+  );
+  monthSelect.add(opt);
+}
+
+// Add placeholder first
+yearSelect.add(new Option("--Select Year--", "", true, true));
+
+// Get current year
+const currentYear = new Date().getFullYear();
+
+// Add years from 2000 to currentYear + 50 (future proof)
+for (let y = 2000; y <= currentYear + 50; y++) {
+  const opt = new Option(y, y);
+  yearSelect.add(opt);
+}
+
 
     function formatDate(dateStr) {
       const [y, m, d] = dateStr.split('-');
