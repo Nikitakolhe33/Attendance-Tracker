@@ -1,0 +1,336 @@
+<!-- 🌟 index.html – Smart Attendance Tracker (Sunday Holiday Only) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Attendance Sheet</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f7f9fc;
+      color: #333;
+      padding: 20px;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark { background: #1e1e2f; color: #f0f0f0; }
+    h1 { text-align: center; }
+    form, .employee-section, .controls {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 800px;
+      margin: 20px auto;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+    body.dark form, body.dark .employee-section, body.dark .controls {
+      background: #2d2d40;
+    }
+    input, button, select {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background: linear-gradient(to right, #667eea, #764ba2);
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 12px;
+      border: 1px solid #ddd;
+      text-align: center;
+    }
+    th { background-color: #f0f0f0; }
+    body.dark th, body.dark td {
+      background-color: #333;
+      color: #f0f0f0;
+    }
+    tr.holiday-row {
+      background-color: #fff7c2;
+    }
+    input.time-edit { width: 90%; font-size: 14px; }
+    .counts { font-weight: bold; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Employee Attendance Sheet</h1>
+
+  <form id="attendanceForm">
+    <input type="text" id="company" placeholder="Company Name" required />
+    <input type="text" id="name" placeholder="Employee Name" required />
+    <label>Select Month:</label>
+    <select id="monthSelect"></select>
+    <label>Select Year:</label>
+    <select id="yearSelect"></select>
+    <input type="date" id="date" />
+    <input type="time" id="inTime" />
+    <input type="time" id="outTime" />
+    <button type="submit">Add / Update</button>
+  </form>
+
+  <div class="controls">
+    <input type="text" id="search" placeholder="🔍 Search Employee Name" />
+    <button onclick="downloadExcel()">⬇️ Excel</button>
+    <button onclick="downloadPDF()">🧾 PDF</button>
+    <button onclick="clearData()">♻️ Clear All</button>
+    <button onclick="toggleDark()">🌓 Toggle Dark Mode</button>
+  </div>
+
+  <div id="employeeTables"></div>
+
+  <script>
+    const form = document.getElementById('attendanceForm');
+    const nameInput = document.getElementById('name');
+    const companyInput = document.getElementById('company');
+    const dateInput = document.getElementById('date');
+    const inTimeInput = document.getElementById('inTime');
+    const outTimeInput = document.getElementById('outTime');
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const employeeTables = document.getElementById('employeeTables');
+    const searchInput = document.getElementById('search');
+    const officeStart = '09:45';
+    let employeeData = {};
+
+    window.onload = () => {
+      form.reset();
+      loadFromStorage();
+    };
+
+    for (let m = 0; m < 12; m++) {
+      const opt = new Option(new Date(0, m).toLocaleString('default', { month: 'long' }), m);
+      if (m === new Date().getMonth()) opt.selected = true;
+      monthSelect.add(opt);
+    }
+
+    for (let y = 2020; y <= 2030; y++) {
+      const opt = new Option(y, y);
+      if (y === new Date().getFullYear()) opt.selected = true;
+      yearSelect.add(opt);
+    }
+
+    function formatDate(dateStr) {
+      const [y, m, d] = dateStr.split('-');
+      return `${d}-${m}-${y}`;
+    }
+
+    function formatTime(t) {
+      if (!t) return '';
+      const [h, m] = t.split(':');
+      const hour = (h % 12) || 12;
+      const period = h >= 12 ? 'PM' : 'AM';
+      return `${hour}:${m} ${period}`;
+    }
+
+    function to24(timeStr) {
+      if (!timeStr) return '';
+      if (timeStr.includes('AM') || timeStr.includes('PM')) {
+        let [time, period] = timeStr.split(' ');
+        let [hour, minute] = time.split(':').map(Number);
+        if (period === 'PM' && hour !== 12) hour += 12;
+        if (period === 'AM' && hour === 12) hour = 0;
+        return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      }
+      return timeStr;
+    }
+
+    function calcHours(start, end) {
+      if (!start || !end) return '-';
+      const s = new Date(`1970-01-01T${start}`);
+      const e = new Date(`1970-01-01T${end}`);
+      let diff = (e - s) / 60000;
+      if (diff < 0) diff += 1440;
+      return `${Math.floor(diff / 60)} hr ${diff % 60} min`;
+    }
+
+    function getLateStatus(inTime) {
+      if (!inTime) return '-';
+      const std = new Date(`1970-01-01T${officeStart}:00`);
+      const actual = new Date(`1970-01-01T${inTime}:00`);
+      const late = (actual - std) / 60000;
+      return late > 0 ? `Late by ${late} min` : 'On Time';
+    }
+
+    function getAllDates(month, year) {
+      const days = new Date(year, month + 1, 0).getDate();
+      const arr = [];
+      for (let i = 1; i <= days; i++) {
+        const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        arr.push(date);
+      }
+      return arr;
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const name = nameInput.value.trim();
+      const company = companyInput.value.trim();
+      const date = dateInput.value;
+      const inTime = inTimeInput.value;
+      const outTime = outTimeInput.value;
+      if (!name || !company || !date) return;
+
+      const key = `${company}-${name}`;
+      const displayDate = formatDate(date);
+      const month = +monthSelect.value, year = +yearSelect.value;
+      const allDates = getAllDates(month, year);
+
+      if (!employeeData[key]) {
+        employeeData[key] = {};
+        allDates.forEach(d => {
+          const dStr = formatDate(d);
+          const isSunday = new Date(d).getDay() === 0;
+          employeeData[key][dStr] = {
+            in: '', out: '', hours: '-', attendance: 'A',
+            status: isSunday ? 'Holiday' : ''
+          };
+        });
+      }
+
+      updateEntry(key, displayDate, inTime, outTime);
+      renderTable(key);
+      saveToStorage();
+    });
+
+    function updateEntry(key, date, inTime, outTime) {
+      const hours = calcHours(inTime, outTime);
+      const status = getLateStatus(inTime);
+      const attendance = inTime && outTime ? 'P' : 'A';
+      employeeData[key][date] = {
+        in: formatTime(inTime), out: formatTime(outTime),
+        hours, status, attendance
+      };
+    }
+
+    function calcTotalHours(data) {
+      let totalMinutes = 0;
+      Object.values(data).forEach(r => {
+        if (r.hours && r.hours.includes("hr")) {
+          const [h, m] = r.hours.match(/\d+/g).map(Number);
+          totalMinutes += h * 60 + m;
+        }
+      });
+      const totalHours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const avgMinutes = totalMinutes / Object.keys(data).length;
+      const avgH = Math.floor(avgMinutes / 60);
+      const avgM = Math.round(avgMinutes % 60);
+      return {
+        total: `${totalHours} hr ${minutes} min`,
+        average: `${avgH} hr ${avgM} min`
+      };
+    }
+
+    function renderTable(key) {
+      const tableId = `table-${key}`;
+      let container = document.getElementById(tableId);
+      if (!container) {
+        container = document.createElement('div');
+        container.id = tableId;
+        employeeTables.appendChild(container);
+      }
+      const data = employeeData[key];
+      let present = 0, absent = 0, rows = '';
+      Object.entries(data).forEach(([d, r]) => {
+        if (r.attendance === 'P') present++;
+        if (r.attendance === 'A') absent++;
+        const isHoliday = r.status === 'Holiday';
+        rows += `
+        <tr class="${isHoliday ? 'holiday-row' : ''}">
+          <td>${d}</td>
+          <td><input type="time" class="time-edit" value="${r.in ? to24(r.in) : ''}" onchange="onEdit('${key}', '${d}', this.value, 'in')"></td>
+          <td><input type="time" class="time-edit" value="${r.out ? to24(r.out) : ''}" onchange="onEdit('${key}', '${d}', this.value, 'out')"></td>
+          <td>${r.hours}</td><td>${r.status}</td><td>${r.attendance}</td>
+        </tr>`;
+      });
+
+      const totalStats = calcTotalHours(data);
+      container.innerHTML = `
+        <h2>${key}</h2>
+        <table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th>Status</th><th>Attendance</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr style="font-weight:bold;background:#f0f0f0">
+            <td colspan="3">Summary</td>
+            <td>${totalStats.total}</td>
+            <td>${totalStats.average}</td>
+            <td>✅ ${present} | ❌ ${absent}</td>
+          </tr>
+        </tfoot>
+        </table>`;
+    }
+
+    function onEdit(key, date, value, type) {
+      const entry = employeeData[key][date];
+      entry[type] = formatTime(value);
+      updateEntry(key, date, to24(entry.in), to24(entry.out));
+      renderTable(key);
+      saveToStorage();
+    }
+
+    function saveToStorage() {
+      const key = `attendance_${yearSelect.value}_${monthSelect.value}`;
+      localStorage.setItem(key, JSON.stringify(employeeData));
+    }
+
+    function loadFromStorage() {
+      const key = `attendance_${yearSelect.value}_${monthSelect.value}`;
+      const data = localStorage.getItem(key);
+      if (data) {
+        employeeData = JSON.parse(data);
+        Object.keys(employeeData).forEach(renderTable);
+      }
+    }
+
+    function clearData() {
+      if (confirm("Are you sure you want to clear all data?")) {
+        const key = `attendance_${yearSelect.value}_${monthSelect.value}`;
+        localStorage.removeItem(key);
+        location.reload();
+      }
+    }
+
+    function toggleDark() {
+      document.body.classList.toggle("dark");
+    }
+
+    function downloadExcel() {
+      const wb = XLSX.utils.book_new();
+      Object.entries(employeeData).forEach(([name, data]) => {
+        const rows = [["Date", "In", "Out", "Hours", "Status", "Attendance"]];
+        Object.entries(data).forEach(([d, r]) => {
+          rows.push([d, r.in, r.out, r.hours, r.status, r.attendance]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      });
+      XLSX.writeFile(wb, "attendance_data.xlsx");
+    }
+
+    function downloadPDF() {
+      const element = document.getElementById('employeeTables');
+      html2pdf().from(element).save("attendance_data.pdf");
+    }
+
+    searchInput.addEventListener('input', () => {
+      const val = searchInput.value.toLowerCase();
+      Array.from(employeeTables.children).forEach(div => {
+        div.style.display = div.id.toLowerCase().includes(val) ? "block" : "none";
+      });
+    });
+  </script>
+</body>
+</html>
