@@ -41,6 +41,7 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
+      padding: 20px;
     }
 
     h1 {
@@ -51,6 +52,7 @@
       align-items: center;
       gap: 10px;
       justify-content: center;
+      flex-wrap: wrap;
     }
 
     .emoji-icon {
@@ -90,6 +92,32 @@
       font-size: 0.9rem;
       color: rgba(255, 255, 255, 0.7);
       animation: fadeInUp 1.8s ease-out;
+    }
+
+    /* 🌐 Responsive Fix */
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 2rem;
+        gap: 6px;
+      }
+
+      .emoji-icon {
+        width: 24px;
+        height: 24px;
+      }
+
+      p {
+        font-size: 1rem;
+      }
+
+      .cta-button {
+        padding: 12px 28px;
+        font-size: 16px;
+      }
+
+      footer {
+        font-size: 0.8rem;
+      }
     }
   </style>
 </head>
